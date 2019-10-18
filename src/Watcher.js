@@ -1,6 +1,43 @@
 const {pushTarget, popTarget, isObject} = require('./util.js')
+const nextTick = require('./next-tick.js')
+
+let queue = []
+const has = {}
+let flushing = false
+let waiting = false
+
+function flushSchedulerQueue() {
+    flushing = true
+
+    queue.sort((a, b) => a.id - b.id)
+    for (let index = 0; index < queue.length; index++) {
+        const watcher = queue[index]
+        watcher.run()
+        has[watcher.id] = null
+    }
+    queue = []
+    flushing = waiting = false
+}
+
+function queueWatcher(watcher) {
+    const id = watcher.id
+    if (!has[id]) {
+        has[id] = true
+
+        if (!flushing) {
+            queue.push(watcher)
+        }
+
+        // 因为在下一个nextTick才会执行flushSchedulerQueue 所以用waiting来保证一次只有一个flushSchedulerQueue在执行
+        if (!waiting) {
+            waiting = true
+            nextTick(flushSchedulerQueue)
+        }
+    }
+}
 
 let id = 0
+
 class Watcher {
     constructor(vm, expOrFn, cb) {
         this.id = id++
@@ -55,14 +92,13 @@ class Watcher {
     }
 
     update() {
-        // TODO 加入到队列 nextTick时批量更新
-        this.run()
+        queueWatcher(this)
     }
 
     run() {
         const value = this.get()
         const oldValue = this.value
-        if(value !== oldValue || isObject(value)) {
+        if (value !== oldValue || isObject(value)) {
             this.value = value
             this.cb.call(this.vm, value, oldValue)
         }

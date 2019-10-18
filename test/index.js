@@ -13,6 +13,7 @@ window.app = new Vue({
             on: {
                 click: () => {
                     this.a.b++
+                    this.a.b++
                 }
             }
         }, this.a.b)
